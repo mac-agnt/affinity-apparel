@@ -13,6 +13,8 @@ export interface ColorConfig {
   textColor: string;
   /** Hex color for the background watermark emblem (used via CSS mask). */
   watermarkTint: string;
+  /** Opacity for the background watermark (0.0–1.0). */
+  watermarkOpacity: number;
 }
 
 /**
@@ -29,6 +31,7 @@ export const COLOR_SEQUENCE: ColorConfig[] = [
     glowColor: "rgba(60,60,60,0.25)",
     textColor: "#ffffff",
     watermarkTint: "#404040",
+    watermarkOpacity: 0.14,
   },
   {
     key: "darkblue",
@@ -40,6 +43,7 @@ export const COLOR_SEQUENCE: ColorConfig[] = [
     glowColor: "rgba(40,60,100,0.30)",
     textColor: "#ffffff",
     watermarkTint: "#3E4C75",
+    watermarkOpacity: 0.14,
   },
   {
     key: "blue",
@@ -51,6 +55,7 @@ export const COLOR_SEQUENCE: ColorConfig[] = [
     glowColor: "rgba(111,143,184,0.30)",
     textColor: "#ffffff",
     watermarkTint: "#9DB6D9",
+    watermarkOpacity: 0.12,
   },
   {
     key: "gray",
@@ -63,7 +68,8 @@ export const COLOR_SEQUENCE: ColorConfig[] = [
     dotColor: "#B0B0B0",
     glowColor: "rgba(180,180,180,0.20)",
     textColor: "#1a1a1a",
-    watermarkTint: "#C0C0C0",
+    watermarkTint: "#4A4A4A",
+    watermarkOpacity: 0.11,
   },
   {
     key: "green",
@@ -75,6 +81,7 @@ export const COLOR_SEQUENCE: ColorConfig[] = [
     glowColor: "rgba(47,95,78,0.30)",
     textColor: "#ffffff",
     watermarkTint: "#4E8C76",
+    watermarkOpacity: 0.14,
   },
   {
     key: "pink",
@@ -88,6 +95,7 @@ export const COLOR_SEQUENCE: ColorConfig[] = [
     glowColor: "rgba(215,207,255,0.30)",
     textColor: "#ffffff",
     watermarkTint: "#E6E0FF",
+    watermarkOpacity: 0.12,
   },
 ];
 

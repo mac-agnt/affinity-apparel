@@ -8,6 +8,11 @@ import {
   SIZE_AVAILABILITY,
   type Size,
 } from "@/lib/hoodieConfig";
+import { checkoutAdapter } from "@/lib/commerce/checkoutAdapter";
+import { Cart } from "@/lib/commerce/types";
+import CheckoutDrawer from "./CheckoutDrawer";
+import Navbar from "./Navbar";
+import AboutOverlay from "./AboutOverlay";
 
 /* ─── Constants ─── */
 
@@ -34,6 +39,15 @@ export default function HoodieHero() {
   const [selectedSize, setSelectedSize] = useState<Size>("M");
   const [quantity, setQuantity] = useState(1);
   const [isNavOpen, setIsNavOpen] = useState(false);
+  const [highlightCta, setHighlightCta] = useState(false);
+  const [aboutInView, setAboutInView] = useState(false);
+  const [isHeroVisible, setIsHeroVisible] = useState(true);
+  const [aboutOpen, setAboutOpen] = useState(false);
+
+  /* ── Cart State ── */
+  const [cart, setCart] = useState<Cart>(checkoutAdapter.createCart());
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const cartCount = cart.lines.reduce((acc, line) => acc + line.quantity, 0);
 
   /* ── Gradient crossfade ── */
   const [gradients, setGradients] = useState<[string, string]>([
@@ -43,6 +57,8 @@ export default function HoodieHero() {
   const [activeLayer, setActiveLayer] = useState(0);
   const activeLayerRef = useRef(0);
   const activeIndexRef = useRef(0);
+  const aboutRef = useRef<HTMLDivElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
 
   /* ── Animation refs ── */
   const animatingRef = useRef(false);
@@ -62,6 +78,49 @@ export default function HoodieHero() {
       img.src = image;
     });
   }, []);
+
+  /* ── Intersection Observer for About Animation ── */
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setAboutInView(true);
+          observer.disconnect(); // Animate once
+        }
+      },
+      { threshold: 0.3 }
+    );
+
+    if (aboutRef.current) {
+      observer.observe(aboutRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  /* ── Intersection Observer for Hero Visibility (Toggle Sticky CTA) ── */
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsHeroVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+
+    if (heroRef.current) {
+      observer.observe(heroRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  /* ── CTA Highlight Effect ── */
+  useEffect(() => {
+    if (highlightCta) {
+      const timer = setTimeout(() => setHighlightCta(false), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightCta]);
 
   /* ────────── Tick engine ────────── */
 
@@ -131,11 +190,33 @@ export default function HoodieHero() {
 
   const handleAddToCart = useCallback(() => {
     const c = COLOR_SEQUENCE[activeIndex];
-    // eslint-disable-next-line no-console
-    console.log(
-      `[Add to Cart] ${c.label} Hoodie · Size ${selectedSize} · Qty ${quantity} · $${(60 * quantity).toFixed(2)}`,
-    );
-  }, [activeIndex, selectedSize, quantity]);
+    
+    // Create new line item
+    const newItem = {
+      variantId: `${c.key}-${selectedSize}`,
+      title: "Oversized Fleece Hoodie",
+      colorKey: c.label,
+      size: selectedSize,
+      unitPriceCents: 6000, // $60.00
+      compareAtCents: 7500, // $75.00
+      quantity: quantity,
+      imageSrc: c.image,
+    };
+
+    const updatedCart = checkoutAdapter.addLineItem(cart, newItem);
+    setCart(updatedCart);
+    setIsCheckoutOpen(true); // Auto-open checkout on add
+  }, [activeIndex, selectedSize, quantity, cart]);
+
+  const handleBuyNow = () => {
+    document.getElementById("home")?.scrollIntoView({ behavior: "smooth" });
+    setTimeout(() => setHighlightCta(true), 600);
+  };
+
+  const handleOpenAbout = () => {
+    setIsNavOpen(false);
+    setAboutOpen(true);
+  };
 
   /* ────────── Derived ────────── */
 
@@ -306,12 +387,13 @@ export default function HoodieHero() {
     );
   };
 
-  const navLinks = ["Menu", "About", "Shop", "Contact"];
-
   /* ══════════════════════════ RENDER ══════════════════════════ */
 
   return (
+    <>
     <section
+      id="home"
+      ref={heroRef}
       className="relative h-screen overflow-hidden select-none"
       aria-label="Oversized Fleece Hoodie product"
     >
@@ -339,15 +421,12 @@ export default function HoodieHero() {
       />
 
       {/* ─────────── WATERMARK ─────────── */}
-      {/* Oversized Nike-style emblem.
-          Mask-tinted to the active theme color (faint).
-          Always mounted — transitions colour smoothly. */}
       <div
-        className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center"
+        className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-[44%] md:top-[42%] -translate-y-1/2 z-[2] flex items-center justify-center"
         aria-hidden="true"
       >
         <div
-          className="w-[820px] max-w-[120vw] lg:w-[1400px] lg:max-w-[110vw] aspect-square"
+          className="w-[1400px] max-w-[220vw] lg:w-[1650px] lg:max-w-[150vw] xl:w-[1875px] aspect-square"
           style={{
             maskImage: 'url("/affinity-sales-emblem.png")',
             maskRepeat: "no-repeat",
@@ -358,9 +437,8 @@ export default function HoodieHero() {
             WebkitMaskPosition: "center",
             WebkitMaskSize: "contain",
             backgroundColor: color.watermarkTint,
-            opacity: 0.045,
-            transform: "translateY(-5vh)",
-            transition: "background-color 300ms ease",
+            opacity: color.watermarkOpacity,
+            transition: "background-color 300ms ease, opacity 300ms ease",
           }}
         />
       </div>
@@ -399,73 +477,14 @@ export default function HoodieHero() {
         style={{ color: color.textColor, transition: "color 300ms ease" }}
       >
         {/* ── Liquid Glass Nav ── */}
-        <nav className="flex-shrink-0 flex justify-center pt-4 md:pt-5 px-4">
-          <div
-            className="inline-flex flex-col items-center rounded-3xl md:rounded-full border transition-all duration-300 overflow-hidden"
-            style={liquidGlass}
-          >
-            {/* Top row: logo + desktop links */}
-            <div className="flex items-center gap-4 md:gap-7 px-4 md:px-7 py-2 md:py-2.5 w-full justify-center">
-              <button
-                className="md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/20 rounded-full"
-                onClick={() => setIsNavOpen((v) => !v)}
-                aria-label="Toggle menu"
-                aria-expanded={isNavOpen}
-              >
-                <img
-                  src="/affinity-sales-emblem.png"
-                  alt="Affinity"
-                  className="h-5 transition-[filter,transform] duration-300"
-                  style={{
-                    filter: isDarkBg ? "none" : "brightness(0)",
-                    transform: isNavOpen
-                      ? "rotate(45deg)"
-                      : "rotate(0deg)",
-                  }}
-                  draggable={false}
-                />
-              </button>
-              <img
-                src="/affinity-sales-emblem.png"
-                alt="Affinity"
-                className="hidden md:block h-7 transition-[filter] duration-300"
-                style={{ filter: isDarkBg ? "none" : "brightness(0)" }}
-                draggable={false}
-              />
-              <div className="hidden md:flex items-center gap-7">
-                {navLinks.map((item) => (
-                  <span
-                    key={item}
-                    className="text-[11px] tracking-[0.18em] uppercase opacity-50 cursor-pointer hover:opacity-80 transition-opacity duration-200"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Mobile expandable links */}
-            <div
-              className="md:hidden w-full overflow-hidden transition-all duration-300 ease-out"
-              style={{
-                maxHeight: isNavOpen ? "200px" : "0px",
-                opacity: isNavOpen ? 1 : 0,
-              }}
-            >
-              <div className="flex flex-col items-center gap-3 pb-3 px-6">
-                {navLinks.map((item) => (
-                  <button
-                    key={item}
-                    onClick={() => setIsNavOpen(false)}
-                    className="text-[11px] tracking-[0.18em] uppercase opacity-55 hover:opacity-90 transition-opacity duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/20 rounded px-2 py-0.5"
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </nav>
+        <Navbar 
+          isNavOpen={isNavOpen} 
+          setIsNavOpen={setIsNavOpen} 
+          cartCount={cartCount} 
+          setIsCheckoutOpen={setIsCheckoutOpen} 
+          isDarkBg={isDarkBg}
+          onAboutOpen={handleOpenAbout}
+        />
 
         {/* ══════════ DESKTOP UI ══════════ */}
 
@@ -503,15 +522,16 @@ export default function HoodieHero() {
               History of Affinity
             </h2>
             <p className="text-[11px] lg:text-xs opacity-30 leading-[1.75] font-light">
-              Founded on the belief that what you wear should match how
-              you move, Affinity began as a small workshop producing
-              quality fleece for those who refused to compromise on
-              comfort or craft.
+              Affinity started inside the sales world, built around people who
+              show up daily and take pride in the craft. What began as a
+              tight circle of reps chasing higher standards turned into a
+              community with its own identity.
             </p>
             <p className="mt-2 text-[11px] lg:text-xs opacity-25 leading-[1.75] font-light">
-              Every stitch carries that original intent — garments that
-              last, fabrics that soften with time, and silhouettes that
-              stay relevant season after season.
+              This apparel line is for that community. Clean, durable pieces
+              you can wear on a call day, a flight, or a meetup. Quiet
+              branding, premium fleece, and a fit that stays sharp even after
+              the grind.
             </p>
           </div>
 
@@ -539,6 +559,15 @@ export default function HoodieHero() {
             className="flex flex-col items-end gap-3"
             style={textStyle}
           >
+            {cartCount > 0 && (
+               <button
+                 onClick={() => setIsCheckoutOpen(true)}
+                 className="mb-1 text-[11px] uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity underline underline-offset-4"
+               >
+                 Checkout ({cartCount})
+               </button>
+            )}
+
             <div
               className="inline-flex items-center gap-3 h-10 px-4 rounded-full border transition-all duration-300"
               style={liquidGlass}
@@ -562,13 +591,18 @@ export default function HoodieHero() {
                 +
               </button>
             </div>
-            <button
-              onClick={handleAddToCart}
-              className="inline-flex items-center px-6 py-2 rounded-full font-semibold text-[13px] tracking-wide border active:scale-[0.97] active:brightness-95 hover:brightness-[1.04] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
-              style={liquidCta}
-            >
-              Add to Cart
-            </button>
+            <div className="relative">
+              {highlightCta && (
+                <span className="absolute -inset-1 rounded-full bg-white/30 animate-ping" />
+              )}
+              <button
+                onClick={handleAddToCart}
+                className="relative inline-flex items-center px-6 py-2 rounded-full font-semibold text-[13px] tracking-wide border active:scale-[0.97] active:brightness-95 hover:brightness-[1.04] transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/30"
+                style={liquidCta}
+              >
+                Add to Cart
+              </button>
+            </div>
           </div>
         </div>
 
@@ -614,24 +648,109 @@ export default function HoodieHero() {
       </div>
 
       {/* ─────────── MOBILE STICKY CTA (ANIMATED) ─────────── */}
-      <div
-        className="md:hidden fixed bottom-0 inset-x-0 z-50 px-4 pb-5 pt-3 bg-gradient-to-t from-black/60 via-black/30 to-transparent"
-        style={textStyle}
-      >
-        <button
-          onClick={handleAddToCart}
-          className="w-full py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-gray-900 active:scale-[0.98] active:brightness-95 hover:brightness-[1.02] transition-all duration-150"
-          style={{
-            backgroundColor: "rgba(255,255,255,0.92)",
-            backgroundImage:
-              "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
-            boxShadow:
-              "inset 0 0.5px 0 0 rgba(255,255,255,0.60), 0 4px 12px -4px rgba(0,0,0,0.15)",
-          }}
+      {!aboutOpen && (
+        <div
+          className={`md:hidden fixed bottom-0 inset-x-0 z-50 px-4 pb-5 pt-3 bg-gradient-to-t from-black/60 via-black/30 to-transparent transition-opacity duration-300 ${isHeroVisible ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+          style={textStyle}
         >
-          Add to Cart
-        </button>
+          <div className="flex gap-3 relative">
+              {highlightCta && (
+                <span className="absolute inset-0 rounded-full bg-white/20 animate-ping pointer-events-none" />
+              )}
+              {cartCount > 0 && (
+                  <button
+                  onClick={() => setIsCheckoutOpen(true)}
+                  className="flex-1 py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-white bg-black/80 backdrop-blur-md active:scale-[0.98] transition-all"
+                  >
+                  Checkout ({cartCount})
+                  </button>
+              )}
+              <button
+              onClick={handleAddToCart}
+              className={`${cartCount > 0 ? 'flex-1' : 'w-full'} py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-gray-900 active:scale-[0.98] active:brightness-95 hover:brightness-[1.02] transition-all duration-150`}
+              style={{
+                  backgroundColor: "rgba(255,255,255,0.92)",
+                  backgroundImage:
+                  "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
+                  boxShadow:
+                  "inset 0 0.5px 0 0 rgba(255,255,255,0.60), 0 4px 12px -4px rgba(0,0,0,0.15)",
+              }}
+              >
+              Add to Cart
+              </button>
+          </div>
+        </div>
+      )}
+      
+      <CheckoutDrawer 
+        isOpen={isCheckoutOpen} 
+        onClose={() => setIsCheckoutOpen(false)}
+        cart={cart}
+        onUpdateCart={setCart}
+        isDarkBg={isDarkBg}
+      />
+    </section>
+
+    {/* ─────────── ABOUT SECTION ─────────── */}
+    <section id="about" ref={aboutRef} className="hidden md:block relative w-full h-[85vh] lg:h-screen overflow-hidden bg-black z-20">
+      {/* Navbar for About Section */}
+      <div className="absolute top-0 inset-x-0 z-20">
+        <Navbar 
+          isNavOpen={isNavOpen} 
+          setIsNavOpen={setIsNavOpen} 
+          cartCount={cartCount} 
+          setIsCheckoutOpen={setIsCheckoutOpen} 
+          isDarkBg={true} // Always dark in About section
+          onAboutOpen={handleOpenAbout}
+        />
+      </div>
+
+      <img
+        src="/affinity-hero-apparel.png"
+        alt="Affinity Apparel Lifestyle"
+        className="absolute bottom-0 w-full h-[55vh] md:h-full md:inset-0 object-cover"
+        draggable={false}
+      />
+      {/* Premium Overlays */}
+      <div className="absolute inset-0 bg-black/25" /> {/* Global dim */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent" /> {/* Bottom gradient */}
+      
+      <div className="absolute inset-0 flex flex-col justify-start pt-28 px-6 md:justify-end md:pt-0 md:px-14 md:pb-24 lg:px-20 lg:pb-32">
+        <div className={`max-w-2xl transition-all duration-700 ease-out ${aboutInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+          <div className="backdrop-blur-xl border border-white/10 bg-white/5 p-8 md:p-10 rounded-2xl">
+            <h2 className="text-white text-4xl md:text-5xl lg:text-6xl font-serif tracking-tight leading-[1.1] mb-6">
+              Built for the Sales Community.
+            </h2>
+            <p 
+              className={`text-white/90 text-lg md:text-xl font-light leading-relaxed mb-8 max-w-xl transition-all duration-700 delay-100 ease-out ${aboutInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+            >
+              Affinity Apparel is made for reps who live in motion — long days, late calls, and standards that don’t slip.
+            </p>
+            <p 
+              className={`text-white/60 text-sm md:text-base leading-relaxed max-w-lg mb-8 transition-all duration-700 delay-200 ease-out ${aboutInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+            >
+              Premium fleece, clean silhouettes, and understated branding — designed to fit in the room and on the road.
+            </p>
+            
+            <button
+              onClick={handleBuyNow}
+              className={`w-full md:w-auto px-8 py-3.5 rounded-full bg-white text-black font-semibold text-sm tracking-wide hover:bg-white/90 transition-all duration-700 delay-300 ease-out ${aboutInView ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+            >
+              Buy the Hoodie
+            </button>
+          </div>
+        </div>
       </div>
     </section>
+    <AboutOverlay
+      open={aboutOpen}
+      onClose={() => setAboutOpen(false)}
+      onBuyNow={handleBuyNow}
+      isNavOpen={isNavOpen}
+      setIsNavOpen={setIsNavOpen}
+      cartCount={cartCount}
+      setIsCheckoutOpen={setIsCheckoutOpen}
+    />
+    </>
   );
 }
