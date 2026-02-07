@@ -12,7 +12,6 @@ import { checkoutAdapter } from "@/lib/commerce/checkoutAdapter";
 import { Cart } from "@/lib/commerce/types";
 import CheckoutDrawer from "./CheckoutDrawer";
 import Navbar from "./Navbar";
-import AboutOverlay from "./AboutOverlay";
 
 /* ─── Constants & Timings ─── */
 
@@ -20,18 +19,20 @@ const TIMINGS = {
   LOAD_STAGGER: 180,
   LOAD_EASE_MS: 900,        // Slower for premium feel
   LOAD_INITIAL_DELAY: 100,
+  NAV_DELAY: 1300,          // Extra delay after Navbar before other items
   SLIDE_EXIT_MS: 550,       // Exit duration
   SLIDE_ENTER_MS: 700,      // Enter duration
   LOGO_DURATION_MS: 1100,   // Slower logo entrance
   LOGO_DELAY_MS: 150,
 };
 
-const TOTAL_LOAD_PHASES = 12;
+const TOTAL_LOAD_PHASES = 14;
+const HOODIE_LOAD_PHASE = 14;
 
 /*  LOAD PHASE MAP
     ──────────────
-     1  Emblem (Background)
-     2  Hoodie Image (Early!)
+     1  Navbar (Expand)
+     2  Emblem (Background)
      3  H1 Headline + Subheader
      4  History Heading
      5  History P1
@@ -42,6 +43,8 @@ const TOTAL_LOAD_PHASES = 12;
     10  Size XL
     11  Quantity Control (Slide in)
     12  Add to Cart (Slide in)
+    13  (Spacing)
+    14  Hoodie Image (Last!)
 */
 
 const HEADLINE_BY_COLOR: Record<string, string> = {
@@ -51,6 +54,13 @@ const HEADLINE_BY_COLOR: Record<string, string> = {
   gray: "Premium And Casual",
   green: "Calm And Clean",
   pink: "Warm And Soft",
+};
+
+const SIZE_SCALES: Record<Size, number> = {
+  S: 0.94,
+  M: 1,
+  L: 1.06,
+  XL: 1.12,
 };
 
 /* ─── Easing Curves ─── */
@@ -70,13 +80,12 @@ export default function HoodieHero() {
   const [quantity, setQuantity] = useState(1);
   const [isNavOpen, setIsNavOpen] = useState(false);
   const [highlightCta, setHighlightCta] = useState(false);
-  const [aboutInView, setAboutInView] = useState(false);
-  const [isHeroVisible, setIsHeroVisible] = useState(true);
-  const [aboutOpen, setAboutOpen] = useState(false);
 
   /* ── First-load entrance ── */
   const [loadPhase, setLoadPhase] = useState(0);
   const [hasMounted, setHasMounted] = useState(false);
+  const [isSlideshowReady, setIsSlideshowReady] = useState(false);
+  
   const reducedMotionRef = useRef(false);
   const transitionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -92,7 +101,6 @@ export default function HoodieHero() {
   ]);
   const [activeLayer, setActiveLayer] = useState(0);
   
-  const aboutRef = useRef<HTMLDivElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(true);
 
@@ -118,19 +126,37 @@ export default function HoodieHero() {
 
     if (reducedMotionRef.current) {
       setLoadPhase(TOTAL_LOAD_PHASES);
+      setIsSlideshowReady(true);
       return;
     }
 
     const timers: ReturnType<typeof setTimeout>[] = [];
-    for (let i = 1; i <= TOTAL_LOAD_PHASES; i++) {
+    
+    // Navbar Phase 1
+    timers.push(setTimeout(() => { if (mountedRef.current) setLoadPhase(1); }, TIMINGS.LOAD_INITIAL_DELAY));
+
+    // Remaining Phases (2..TOTAL)
+    for (let i = 2; i <= TOTAL_LOAD_PHASES; i++) {
       timers.push(
         setTimeout(() => {
           if (mountedRef.current) setLoadPhase(i);
-        }, TIMINGS.LOAD_INITIAL_DELAY + i * TIMINGS.LOAD_STAGGER),
+        }, TIMINGS.LOAD_INITIAL_DELAY + TIMINGS.NAV_DELAY + (i - 1) * TIMINGS.LOAD_STAGGER),
       );
     }
     return () => timers.forEach(clearTimeout);
   }, []);
+
+  /* ── Detect when final entrance animation is done to enable slideshow ── */
+  useEffect(() => {
+    if (loadPhase >= HOODIE_LOAD_PHASE && !reducedMotionRef.current) {
+      // Wait for the Hoodie entrance transition to finish before swapping to slideshow mode
+      // This prevents the "double load" or "snap" effect.
+      const timer = setTimeout(() => {
+        if (mountedRef.current) setIsSlideshowReady(true);
+      }, TIMINGS.LOAD_EASE_MS);
+      return () => clearTimeout(timer);
+    }
+  }, [loadPhase]);
 
   /* ── Slideshow Logic (Exit then Enter) ── */
   useEffect(() => {
@@ -154,32 +180,6 @@ export default function HoodieHero() {
       if (transitionTimeoutRef.current) clearTimeout(transitionTimeoutRef.current);
     };
   }, [activeIndex, displayedIndex]);
-
-  /* ── Observers ── */
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setAboutInView(true);
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.3 },
-    );
-    if (aboutRef.current) observer.observe(aboutRef.current);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsHeroVisible(entry.isIntersecting);
-      },
-      { threshold: 0.1 },
-    );
-    if (heroRef.current) observer.observe(heroRef.current);
-    return () => observer.disconnect();
-  }, []);
 
   /* ── CTA Highlight Effect ── */
   useEffect(() => {
@@ -235,21 +235,10 @@ export default function HoodieHero() {
     setIsCheckoutOpen(true);
   }, [activeIndex, selectedSize, quantity, cart]);
 
-  const handleBuyNow = () => {
-    document.getElementById("home")?.scrollIntoView({ behavior: "smooth" });
-    setTimeout(() => setHighlightCta(true), 600);
-  };
-
-  const handleOpenAbout = () => {
-    setIsNavOpen(false);
-    setAboutOpen(true);
-  };
-
   /* ────────── Derived ────────── */
 
   const color = COLOR_SEQUENCE[activeIndex];
   const isDarkBg = color.textColor === "#ffffff";
-  const isFullyLoaded = loadPhase >= TOTAL_LOAD_PHASES;
 
   // Split headline for 3-line effect
   const headlineWords = HEADLINE_BY_COLOR[color.key].split(" ");
@@ -276,7 +265,7 @@ export default function HoodieHero() {
     step: number,
     type: "fadeUp" | "fadeRight" = "fadeUp",
   ): React.CSSProperties | undefined => {
-    if (!hasMounted || isFullyLoaded) return undefined;
+    if (!hasMounted || isSlideshowReady) return undefined;
     const visible = loadPhase >= step;
     
     const transform = type === "fadeUp" 
@@ -297,7 +286,8 @@ export default function HoodieHero() {
     const sel = selectedSize === size;
     const dim = variant === "desktop" ? "w-[52px] h-11 rounded-xl text-sm" : "w-12 h-10 rounded-lg text-sm";
     
-    const sizePhase = 7 + idx;
+    // Updated Phases: Sizes are 6,7,8,9
+    const sizePhase = 6 + idx;
 
     return (
       <button
@@ -356,13 +346,10 @@ export default function HoodieHero() {
       }
     `}</style>
 
-    {/* Scroll-snap wrapper */}
-    <div className="h-screen overflow-y-auto md:snap-y md:snap-mandatory scroll-smooth">
-
     <section
       id="home"
       ref={heroRef}
-      className="relative h-screen overflow-hidden select-none md:snap-start"
+      className="relative h-screen overflow-hidden select-none"
       aria-label="Oversized Fleece Hoodie product"
     >
       {/* ─────────── BACKGROUND ─────────── */}
@@ -386,15 +373,15 @@ export default function HoodieHero() {
         }}
       />
 
-      {/* ─────────── WATERMARK — Phase 1 ─────────── */}
+      {/* ─────────── WATERMARK — Phase 2 ─────────── */}
       <div
         className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-[44%] md:top-[42%] -translate-y-1/2 z-[2] flex items-center justify-center"
         aria-hidden="true"
         style={
-          hasMounted && !isFullyLoaded
+          hasMounted && !isSlideshowReady
             ? {
-                opacity: loadPhase >= 1 ? 1 : 0,
-                transform: loadPhase >= 1 ? "scale(1)" : "scale(0.985)",
+                opacity: loadPhase >= 2 ? 1 : 0,
+                transform: loadPhase >= 2 ? "scale(1)" : "scale(0.985)",
                 transition: `opacity ${TIMINGS.LOGO_DURATION_MS}ms ${EASE_PREMIUM} ${TIMINGS.LOGO_DELAY_MS}ms, transform ${TIMINGS.LOGO_DURATION_MS}ms ${EASE_PREMIUM} ${TIMINGS.LOGO_DELAY_MS}ms`,
               }
             : undefined
@@ -418,20 +405,23 @@ export default function HoodieHero() {
         />
       </div>
 
-      {/* ─────────── MAIN HOODIE — Phase 2 (Early) + Slideshow ─────────── */}
+      {/* ─────────── MAIN HOODIE — Phase 14 (Last) + Slideshow ─────────── */}
       <div
         className="absolute z-[5] left-1/2 -translate-x-1/2 pointer-events-none top-[42%] sm:top-[42%] md:top-[43%] -translate-y-1/2"
       >
-        <div className="relative w-[420px] h-[420px] sm:w-[460px] sm:h-[460px] md:w-[440px] md:h-[440px] lg:w-[520px] lg:h-[520px] xl:w-[560px] xl:h-[560px]">
+        <div 
+          className="relative w-[420px] h-[420px] sm:w-[460px] sm:h-[460px] md:w-[440px] md:h-[440px] lg:w-[520px] lg:h-[520px] xl:w-[560px] xl:h-[560px] transition-transform duration-500 ease-out"
+          style={{ transform: `scale(${SIZE_SCALES[selectedSize]})` }}
+        >
           {/* First Load Image (Separate to avoid slideshow conflicts on mount) */}
-          {!isFullyLoaded && (
+          {!isSlideshowReady && (
              <img
                src={COLOR_SEQUENCE[activeIndex].image}
                alt="Hoodie"
                className="absolute inset-0 w-full h-full object-contain"
                style={{
-                 opacity: loadPhase >= 2 ? 1 : 0,
-                 transform: loadPhase >= 2 ? "scale(1)" : "scale(0.985)",
+                 opacity: loadPhase >= HOODIE_LOAD_PHASE ? 1 : 0,
+                 transform: loadPhase >= HOODIE_LOAD_PHASE ? "scale(1)" : "scale(0.985)",
                  transition: `opacity ${TIMINGS.LOAD_EASE_MS}ms ${EASE_PREMIUM}, transform ${TIMINGS.LOAD_EASE_MS}ms ${EASE_PREMIUM}`,
                }}
                draggable={false}
@@ -439,12 +429,12 @@ export default function HoodieHero() {
           )}
 
           {/* Slideshow Image (Active after load) */}
-          {isFullyLoaded && (
+          {isSlideshowReady && (
             <img
-              key={displayedIndex} // Remounts on swap -> triggers enter animation if !isExiting
+              key={displayedIndex}
               src={COLOR_SEQUENCE[displayedIndex].image}
               alt="Hoodie"
-              className={!isExiting ? "absolute inset-0 w-full h-full object-contain animate-slide-in" : "absolute inset-0 w-full h-full object-contain"}
+              className={!isExiting && (activeIndex !== displayedIndex || displayedIndex !== 0) ? "absolute inset-0 w-full h-full object-contain animate-slide-in" : "absolute inset-0 w-full h-full object-contain"}
               style={
                 isExiting
                   ? {
@@ -471,7 +461,7 @@ export default function HoodieHero() {
           cartCount={cartCount}
           setIsCheckoutOpen={setIsCheckoutOpen}
           isDarkBg={isDarkBg}
-          onAboutOpen={handleOpenAbout}
+          shouldExpand={loadPhase >= 1}
         />
 
         {/* ══════════ DESKTOP UI ══════════ */}
@@ -479,8 +469,8 @@ export default function HoodieHero() {
         <div className="hidden md:flex absolute z-10 inset-x-0 top-[40%] -translate-y-1/2 items-start justify-between px-10 lg:px-14 xl:px-16 pointer-events-none">
           {/* Left copy block */}
           <div className="max-w-[190px] lg:max-w-[240px] xl:max-w-[280px] pointer-events-auto">
-            {/* Phase 3 — Headline + Subheader */}
-            <div style={entrance(3)}>
+            {/* Phase 2 — Headline + Subheader */}
+            <div style={entrance(2)}>
               <h1 className="text-3xl lg:text-4xl xl:text-5xl font-bold tracking-tight leading-[1.08] min-h-[3em]">
                 {/* Render the dynamic headline with line breaks */}
                 <span className="block" key={color.key}>
@@ -507,30 +497,27 @@ export default function HoodieHero() {
         <div className="hidden md:flex absolute z-10 bottom-6 lg:bottom-8 inset-x-0 items-end justify-between px-10 lg:px-14 xl:px-16">
           {/* Left — History of Affinity */}
           <div className="max-w-[260px] lg:max-w-[310px] xl:max-w-[340px]">
-            <h2 
-              className="text-[10px] lg:text-[11px] uppercase tracking-[0.22em] opacity-40 font-medium mb-2.5"
-              style={entrance(4)}
-            >
-              History of Affinity
-            </h2>
-            <p 
-              className="text-[11px] lg:text-xs opacity-30 leading-[1.75] font-light"
-              style={entrance(5)}
-            >
-              Affinity started inside the sales world, built around people who
-              show up daily and take pride in the craft. What began as a
-              tight circle of reps chasing higher standards turned into a
-              community with its own identity.
-            </p>
-            <p
-              className="mt-2 text-[11px] lg:text-xs opacity-25 leading-[1.75] font-light"
-              style={entrance(6)}
-            >
-              This apparel line is for that community. Clean, durable pieces
-              you can wear on a call day, a flight, or a meetup. Quiet
-              branding, premium fleece, and a fit that stays sharp even after
-              the grind.
-            </p>
+            <div style={entrance(3)}>
+              <h2 className="text-[10px] lg:text-[11px] uppercase tracking-[0.22em] opacity-40 font-medium mb-2.5">
+                History of Affinity
+              </h2>
+            </div>
+            <div style={entrance(4)}>
+              <p className="text-[11px] lg:text-xs opacity-30 leading-[1.75] font-light">
+                Affinity started inside the sales world, built around people who
+                show up daily and take pride in the craft. What began as a
+                tight circle of reps chasing higher standards turned into a
+                community with its own identity.
+              </p>
+            </div>
+            <div style={entrance(5)}>
+              <p className="mt-2 text-[11px] lg:text-xs opacity-25 leading-[1.75] font-light">
+                This apparel line is for that community. Clean, durable pieces
+                you can wear on a call day, a flight, or a meetup. Quiet
+                branding, premium fleece, and a fit that stays sharp even after
+                the grind.
+              </p>
+            </div>
           </div>
 
           {/* Centre — Price + colour dots (PERSISTENT, no entrance) */}
@@ -555,8 +542,8 @@ export default function HoodieHero() {
               </button>
             )}
 
-            {/* Phase 11 — Quantity (Slide in) */}
-            <div style={entrance(11, "fadeRight")}>
+            {/* Phase 10 — Quantity (Slide in) */}
+            <div style={entrance(10, "fadeRight")}>
               <div className="inline-flex items-center gap-3 h-10 px-4 rounded-full border transition-all duration-300" style={liquidGlass}>
                 <button
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -575,8 +562,8 @@ export default function HoodieHero() {
               </div>
             </div>
 
-            {/* Phase 12 — Add to Cart (Slide in) */}
-            <div style={entrance(12, "fadeRight")}>
+            {/* Phase 11 — Add to Cart (Slide in) */}
+            <div style={entrance(11, "fadeRight")}>
               <div className="relative">
                 {highlightCta && (
                   <span className="absolute -inset-1 rounded-full bg-white/30 animate-ping" />
@@ -596,8 +583,8 @@ export default function HoodieHero() {
         {/* ══════════ MOBILE UI ══════════ */}
 
         <div className="md:hidden text-center px-6 pt-2">
-          {/* Phase 3 - Headline + Subheader */}
-          <div style={entrance(3)}>
+          {/* Phase 2 - Headline + Subheader */}
+          <div style={entrance(2)}>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
               {/* Single line preferred on mobile unless very long */}
               {HEADLINE_BY_COLOR[color.key]}
@@ -628,40 +615,38 @@ export default function HoodieHero() {
         <div className="md:hidden h-[80px] flex-shrink-0" />
       </div>
 
-      {/* ─────────── MOBILE STICKY CTA — Phase 11/12 ─────────── */}
-      {!aboutOpen && (
-        <div
-          className={`md:hidden fixed bottom-0 inset-x-0 z-50 px-4 pb-5 pt-3 bg-gradient-to-t from-black/60 via-black/30 to-transparent transition-opacity duration-300 ${isHeroVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-          style={entrance(11, "fadeUp")} // Slide up on mobile
-        >
-          <div className="flex gap-3 relative">
-            {highlightCta && (
-              <span className="absolute inset-0 rounded-full bg-white/20 animate-ping pointer-events-none" />
-            )}
-            {cartCount > 0 && (
-              <button
-                onClick={() => setIsCheckoutOpen(true)}
-                className="flex-1 py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-white bg-black/80 backdrop-blur-md active:scale-[0.98] transition-all"
-              >
-                Checkout ({cartCount})
-              </button>
-            )}
+      {/* ─────────── MOBILE STICKY CTA — Phase 11 ─────────── */}
+      <div
+        className="md:hidden fixed bottom-0 inset-x-0 z-50 px-4 pb-5 pt-3 bg-gradient-to-t from-black/60 via-black/30 to-transparent transition-opacity duration-300"
+        style={entrance(11, "fadeUp")} // Slide up on mobile
+      >
+        <div className="flex gap-3 relative">
+          {highlightCta && (
+            <span className="absolute inset-0 rounded-full bg-white/20 animate-ping pointer-events-none" />
+          )}
+          {cartCount > 0 && (
             <button
-              onClick={handleAddToCart}
-              className={`${cartCount > 0 ? "flex-1" : "w-full"} py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-gray-900 active:scale-[0.98] active:brightness-95 hover:brightness-[1.02] transition-all duration-150`}
-              style={{
-                backgroundColor: "rgba(255,255,255,0.92)",
-                backgroundImage:
-                  "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
-                boxShadow:
-                  "inset 0 0.5px 0 0 rgba(255,255,255,0.60), 0 4px 12px -4px rgba(0,0,0,0.15)",
-              }}
+              onClick={() => setIsCheckoutOpen(true)}
+              className="flex-1 py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-white bg-black/80 backdrop-blur-md active:scale-[0.98] transition-all"
             >
-              Add to Cart
+              Checkout ({cartCount})
             </button>
-          </div>
+          )}
+          <button
+            onClick={handleAddToCart}
+            className={`${cartCount > 0 ? "flex-1" : "w-full"} py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-gray-900 active:scale-[0.98] active:brightness-95 hover:brightness-[1.02] transition-all duration-150`}
+            style={{
+              backgroundColor: "rgba(255,255,255,0.92)",
+              backgroundImage:
+                "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
+              boxShadow:
+                "inset 0 0.5px 0 0 rgba(255,255,255,0.60), 0 4px 12px -4px rgba(0,0,0,0.15)",
+            }}
+          >
+            Add to Cart
+          </button>
         </div>
-      )}
+      </div>
 
       <CheckoutDrawer
         isOpen={isCheckoutOpen}
@@ -671,78 +656,6 @@ export default function HoodieHero() {
         isDarkBg={isDarkBg}
       />
     </section>
-
-    {/* ─────────── ABOUT SECTION (desktop — slideshow snap target) ─────────── */}
-    <section
-      id="about"
-      ref={aboutRef}
-      className="hidden md:block relative w-full h-[85vh] lg:h-screen overflow-hidden bg-black z-20 md:snap-start"
-    >
-      {/* Navbar for About Section */}
-      <div className="absolute top-0 inset-x-0 z-20">
-        <Navbar
-          isNavOpen={isNavOpen}
-          setIsNavOpen={setIsNavOpen}
-          cartCount={cartCount}
-          setIsCheckoutOpen={setIsCheckoutOpen}
-          isDarkBg={true}
-          onAboutOpen={handleOpenAbout}
-        />
-      </div>
-
-      <img
-        src="/affinity-hero-apparel.png"
-        alt="Affinity Apparel Lifestyle"
-        className="absolute bottom-0 w-full h-[55vh] md:h-full md:inset-0 object-cover"
-        draggable={false}
-      />
-      {/* Premium Overlays */}
-      <div className="absolute inset-0 bg-black/25" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/15 to-transparent" />
-
-      <div className="absolute inset-0 flex flex-col justify-start pt-28 px-6 md:justify-end md:pt-0 md:px-14 md:pb-24 lg:px-20 lg:pb-32">
-        <div
-          className={`max-w-2xl transition-all duration-700 ease-out ${aboutInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
-        >
-          <div className="backdrop-blur-xl border border-white/10 bg-white/5 p-8 md:p-10 rounded-2xl">
-            <h2 className="text-white text-4xl md:text-5xl lg:text-6xl font-serif tracking-tight leading-[1.1] mb-6">
-              Built for the Sales Community.
-            </h2>
-            <p
-              className={`text-white/90 text-lg md:text-xl font-light leading-relaxed mb-8 max-w-xl transition-all duration-700 delay-100 ease-out ${aboutInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
-            >
-              Affinity Apparel is made for reps who live in motion — long days,
-              late calls, and standards that don&apos;t slip.
-            </p>
-            <p
-              className={`text-white/60 text-sm md:text-base leading-relaxed max-w-lg mb-8 transition-all duration-700 delay-200 ease-out ${aboutInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
-            >
-              Premium fleece, clean silhouettes, and understated branding —
-              designed to fit in the room and on the road.
-            </p>
-
-            <button
-              onClick={handleBuyNow}
-              className={`w-full md:w-auto px-8 py-3.5 rounded-full bg-white text-black font-semibold text-sm tracking-wide hover:bg-white/90 transition-all duration-700 delay-300 ease-out ${aboutInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}
-            >
-              Buy the Hoodie
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    </div>{/* end scroll-snap wrapper */}
-
-    <AboutOverlay
-      open={aboutOpen}
-      onClose={() => setAboutOpen(false)}
-      onBuyNow={handleBuyNow}
-      isNavOpen={isNavOpen}
-      setIsNavOpen={setIsNavOpen}
-      cartCount={cartCount}
-      setIsCheckoutOpen={setIsCheckoutOpen}
-    />
     </>
   );
 }

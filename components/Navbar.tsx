@@ -9,6 +9,7 @@ interface NavbarProps {
   setIsCheckoutOpen: (isOpen: boolean) => void;
   isDarkBg: boolean;
   onAboutOpen?: () => void;
+  shouldExpand?: boolean;
 }
 
 export default function Navbar({
@@ -18,27 +19,13 @@ export default function Navbar({
   setIsCheckoutOpen,
   isDarkBg,
   onAboutOpen,
+  shouldExpand = true,
 }: NavbarProps) {
-  const handleAboutClick = () => {
-    if (
-      onAboutOpen &&
-      typeof window !== "undefined" &&
-      window.matchMedia("(max-width: 767px)").matches
-    ) {
-      onAboutOpen();
-      return;
-    }
-
-    document.getElementById("about")?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  
   const navLinks = [
     { label: "Home", href: "https://affinitysalestraining.com" },
     { label: "Shop", href: "/" },
-    { 
-      label: "About", 
-      action: handleAboutClick,
-    },
+    { label: "About", href: "/about" },
   ];
 
   /* ─── Styling Tokens (Glass) ─── */
@@ -65,11 +52,12 @@ export default function Navbar({
   return (
     <nav className="flex-shrink-0 flex justify-center pt-4 md:pt-5 px-4 z-50 relative">
       <div
-        className="inline-flex flex-col items-center rounded-3xl md:rounded-full border transition-all duration-300 overflow-hidden"
+        className="inline-flex flex-col items-center rounded-3xl md:rounded-full border transition-all duration-[1200ms] cubic-bezier(0.16,1,0.3,1) overflow-hidden"
         style={liquidGlass}
       >
         {/* Top row: logo + desktop links */}
         <div className="flex items-center gap-4 md:gap-7 px-4 md:px-7 py-2 md:py-2.5 w-full justify-center">
+          {/* Mobile Toggle */}
           <button
             className="md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/20 rounded-full"
             onClick={() => setIsNavOpen(!isNavOpen)}
@@ -87,20 +75,36 @@ export default function Navbar({
               draggable={false}
             />
           </button>
-          <img
-            src="/affinity-sales-emblem.png"
-            alt="Affinity"
-            className="hidden md:block h-9 transition-[filter] duration-300"
-            style={{ filter: isDarkBg ? "none" : "brightness(0)" }}
-            draggable={false}
-          />
-          <div className="hidden md:flex items-center gap-7">
+
+          {/* Desktop Logo - Rotates on entrance */}
+          <div className="hidden md:block relative">
+             <img
+              src="/affinity-sales-emblem.png"
+              alt="Affinity"
+              className="h-9 transition-all duration-[1200ms] cubic-bezier(0.16,1,0.3,1)"
+              style={{ 
+                filter: isDarkBg ? "none" : "brightness(0)",
+                transform: shouldExpand ? "rotate(0deg)" : "rotate(-90deg)"
+              }}
+              draggable={false}
+            />
+          </div>
+
+          {/* Desktop Links Container - Expands/Reveals */}
+          <div 
+            className={`hidden md:flex items-center gap-7 transition-all duration-[1200ms] cubic-bezier(0.16,1,0.3,1) overflow-hidden origin-left`}
+            style={{
+              maxWidth: shouldExpand ? "500px" : "0px",
+              opacity: shouldExpand ? 1 : 0,
+              transform: shouldExpand ? "translateX(0)" : "translateX(-10px)",
+            }}
+          >
             {navLinks.map((item) => (
               item.href ? (
                 <a
                   key={item.label}
                   href={item.href}
-                  className={navLinkClass}
+                  className={`${navLinkClass} whitespace-nowrap`}
                 >
                   {item.label}
                 </a>
@@ -108,7 +112,7 @@ export default function Navbar({
                 <button
                   key={item.label}
                   onClick={item.action}
-                  className={navLinkClass}
+                  className={`${navLinkClass} whitespace-nowrap`}
                 >
                   {item.label}
                 </button>
@@ -117,7 +121,7 @@ export default function Navbar({
             {/* Cart Indicator (Desktop) */}
             <button
               onClick={() => setIsCheckoutOpen(true)}
-              className="flex items-center gap-2 uppercase tracking-[0.18em] text-[11px] font-medium opacity-80 hover:opacity-100 transition-opacity"
+              className="flex items-center gap-2 uppercase tracking-[0.18em] text-[11px] font-medium opacity-80 hover:opacity-100 transition-opacity whitespace-nowrap"
             >
               Cart
               {cartCount > 0 && (
