@@ -595,11 +595,29 @@ export default function HoodieHero() {
           </div>
         </div>
 
-        <div className="md:hidden flex-1 min-h-[140px]" />
+        <div className="md:hidden flex-1 min-h-[100px]" />
 
-        <div className="md:hidden space-y-3 px-5 text-center pb-2">
+        <div className="md:hidden space-y-3 px-5 text-center pb-6">
           <div className="flex items-center justify-center gap-2">
             {SIZES.map((s, i) => sizeBtn(s, "mobile", i))}
+          </div>
+          <div style={entrance(11, "fadeUp")} className="relative px-2">
+            {highlightCta && (
+              <span className="absolute inset-0 rounded-full bg-white/20 animate-ping pointer-events-none" />
+            )}
+            <button
+              onClick={handleAddToCart}
+              className="relative w-full py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-gray-900 active:scale-[0.98] active:brightness-95 hover:brightness-[1.02] transition-all duration-150"
+              style={{
+                backgroundColor: "rgba(255,255,255,0.92)",
+                backgroundImage:
+                  "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
+                boxShadow:
+                  "inset 0 0.5px 0 0 rgba(255,255,255,0.60), 0 4px 12px -4px rgba(0,0,0,0.15)",
+              }}
+            >
+              Add to Cart
+            </button>
           </div>
           <div className="flex flex-col items-center gap-2">
             <div className="flex items-baseline gap-2">
@@ -612,40 +630,7 @@ export default function HoodieHero() {
           </div>
         </div>
 
-        <div className="md:hidden h-[80px] flex-shrink-0" />
-      </div>
-
-      {/* ─────────── MOBILE STICKY CTA — Phase 11 ─────────── */}
-      <div
-        className="md:hidden fixed bottom-0 inset-x-0 z-50 px-4 pb-5 pt-3 bg-gradient-to-t from-black/60 via-black/30 to-transparent transition-opacity duration-300"
-        style={entrance(11, "fadeUp")} // Slide up on mobile
-      >
-        <div className="flex gap-3 relative">
-          {highlightCta && (
-            <span className="absolute inset-0 rounded-full bg-white/20 animate-ping pointer-events-none" />
-          )}
-          {cartCount > 0 && (
-            <button
-              onClick={() => setIsCheckoutOpen(true)}
-              className="flex-1 py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-white bg-black/80 backdrop-blur-md active:scale-[0.98] transition-all"
-            >
-              Checkout ({cartCount})
-            </button>
-          )}
-          <button
-            onClick={handleAddToCart}
-            className={`${cartCount > 0 ? "flex-1" : "w-full"} py-3 rounded-full font-semibold text-sm tracking-wide border border-white/30 text-gray-900 active:scale-[0.98] active:brightness-95 hover:brightness-[1.02] transition-all duration-150`}
-            style={{
-              backgroundColor: "rgba(255,255,255,0.92)",
-              backgroundImage:
-                "linear-gradient(180deg, rgba(255,255,255,0.10) 0%, transparent 100%)",
-              boxShadow:
-                "inset 0 0.5px 0 0 rgba(255,255,255,0.60), 0 4px 12px -4px rgba(0,0,0,0.15)",
-            }}
-          >
-            Add to Cart
-          </button>
-        </div>
+        <div className="md:hidden h-4 flex-shrink-0" />
       </div>
 
       <CheckoutDrawer
