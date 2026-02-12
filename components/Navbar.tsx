@@ -18,7 +18,6 @@ export default function Navbar({
   cartCount,
   setIsCheckoutOpen,
   isDarkBg,
-  onAboutOpen,
   shouldExpand = true,
 }: NavbarProps) {
   
@@ -100,23 +99,13 @@ export default function Navbar({
             }}
           >
             {navLinks.map((item) => (
-              item.href ? (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className={`${navLinkClass} whitespace-nowrap`}
-                >
-                  {item.label}
-                </a>
-              ) : (
-                <button
-                  key={item.label}
-                  onClick={item.action}
-                  className={`${navLinkClass} whitespace-nowrap`}
-                >
-                  {item.label}
-                </button>
-              )
+              <a
+                key={item.label}
+                href={item.href}
+                className={`${navLinkClass} whitespace-nowrap`}
+              >
+                {item.label}
+              </a>
             ))}
             {/* Cart Indicator (Desktop) */}
             <button
@@ -145,27 +134,14 @@ export default function Navbar({
         >
           <div className="flex flex-col items-center gap-3 pb-4 px-3">
             {navLinks.map((item) => (
-              item.href ? (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  onClick={() => setIsNavOpen(false)}
-                  className={mobileNavLinkClass}
-                >
-                  {item.label}
-                </a>
-              ) : (
-                <button
-                  key={item.label}
-                  onClick={() => {
-                    item.action?.();
-                    setIsNavOpen(false);
-                  }}
-                  className={mobileNavLinkClass}
-                >
-                  {item.label}
-                </button>
-              )
+              <a
+                key={item.label}
+                href={item.href}
+                onClick={() => setIsNavOpen(false)}
+                className={mobileNavLinkClass}
+              >
+                {item.label}
+              </a>
             ))}
 
             {/* Mobile Cart Link inside Menu */}
